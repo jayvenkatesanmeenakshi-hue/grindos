@@ -1,0 +1,68 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user RPG progress and stats.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "level": { "type": "number" },
+        "xp": { "type": "number" },
+        "streak": { "type": "number" },
+        "lastActive": { "type": "string", "format": "date-time" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "knowledge": { "type": "number" },
+            "skill": { "type": "number" },
+            "relationships": { "type": "number" },
+            "creation": { "type": "number" },
+            "discipline": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "level", "xp", "streak", "stats"]
+    },
+    "Quest": {
+      "title": "Quest",
+      "description": "A task for the user to complete for XP.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["daily", "side"] },
+        "category": { "type": "string" },
+        "xpReward": { "type": "number" },
+        "completed": { "type": "boolean" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "type", "xpReward", "completed"]
+    },
+    "Activity": {
+      "title": "Activity Log",
+      "description": "History of XP gains and actions.",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string" },
+        "xpGained": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "xpGained", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and progress."
+    },
+    "/users/{userId}/quests/{questId}": {
+      "schema": "Quest",
+      "description": "User's daily and side quests."
+    },
+    "/users/{userId}/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "User's activity history."
+    }
+  }
+}
