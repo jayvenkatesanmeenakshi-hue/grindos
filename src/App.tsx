@@ -205,7 +205,7 @@ export default function App() {
   const [newQuest, setNewQuest] = useState({ title: '', xp: 20, category: 'custom', type: 'main' as 'main' | 'side' });
   const [dbError, setDbError] = useState<string | null>(null);
   const [systemError, setSystemError] = useState<string | null>(null);
-  const [authMethod, setAuthMethod] = useState<'popup' | 'redirect'>('popup');
+  const [authMethod, setAuthMethod] = useState<'popup' | 'redirect'>('redirect');
 
   // Handle Redirect Result
   useEffect(() => {
@@ -484,12 +484,24 @@ export default function App() {
           <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto" />
           <h1 className="text-xl font-bold">System Error</h1>
           <p className="text-zinc-400 text-sm">{systemError}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="w-full py-3 bg-rose-600 hover:bg-rose-500 rounded-xl font-bold transition-colors"
-          >
-            Reboot System
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => {
+                setSystemError(null);
+                setAuthMethod('redirect');
+                handleLogin();
+              }}
+              className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition-colors text-sm"
+            >
+              Try Redirect Mode
+            </button>
+            <button 
+              onClick={() => window.location.reload()}
+              className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-bold transition-colors text-sm"
+            >
+              Reboot
+            </button>
+          </div>
         </div>
       </div>
     );
