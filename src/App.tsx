@@ -327,8 +327,19 @@ export default function App() {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Login Error:', err);
+      if (err.code === 'auth/unauthorized-domain') {
+        setSystemError(`Login failed: This domain is not authorized in your Firebase Console. Please add "${window.location.hostname}" to Authentication > Settings > Authorized domains.`);
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setSystemError("Login failed: Google Sign-In is not enabled in your Firebase Console. Please enable it in Authentication > Sign-in method.");
+      } else if (err.code === 'auth/popup-blocked') {
+        setSystemError("Login failed: The popup was blocked by your browser. Please allow popups for this site.");
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        // Silently handle user closing the popup
+      } else {
+        setSystemError(`Login failed: ${err.message}`);
+      }
     }
   };
 
