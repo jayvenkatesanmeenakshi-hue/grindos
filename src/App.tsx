@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import * as React from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   auth, db 
 } from './firebase';
@@ -21,6 +22,7 @@ import {
   limit, 
   Timestamp,
   getDoc,
+  getDocFromServer,
   serverTimestamp
 } from 'firebase/firestore';
 import { 
@@ -58,6 +60,55 @@ import { twMerge } from 'tailwind-merge';
 // --- Utilities ---
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: any[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, setSystemError?: (err: string) => void) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error:', JSON.stringify(errInfo));
+  if (setSystemError) {
+    setSystemError(errInfo.error);
+  }
+  return new Error(JSON.stringify(errInfo));
 }
 
 // --- Types ---
@@ -150,20 +201,41 @@ export default function App() {
   const [xpFeedback, setXpFeedback] = useState<{ amount: number, id: number } | null>(null);
   const [isAddingQuest, setIsAddingQuest] = useState(false);
   const [newQuest, setNewQuest] = useState({ title: '', xp: 20, category: 'custom', type: 'main' as 'main' | 'side' });
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [systemError, setSystemError] = useState<string | null>(null);
+
+  // Connection Test
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error: any) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          setDbError("Firebase configuration error: The client is offline. Please check your manual setup.");
+        }
+      }
+    }
+    testConnection();
+  }, []);
 
   const handleAddQuest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newQuest.title) return;
 
-    await addDoc(collection(db, 'users', user.uid, 'quests'), {
-      title: newQuest.title,
-      type: newQuest.type,
-      category: newQuest.category,
-      xpReward: Number(newQuest.xp),
-      completed: false,
-      completedAt: null,
-      createdAt: serverTimestamp()
-    });
+    const path = `users/${user.uid}/quests`;
+    try {
+      await addDoc(collection(db, 'users', user.uid, 'quests'), {
+        title: newQuest.title,
+        type: newQuest.type,
+        category: newQuest.category,
+        xpReward: Number(newQuest.xp),
+        completed: false,
+        completedAt: null,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path, setSystemError);
+    }
 
     setIsAddingQuest(false);
     setNewQuest({ title: '', xp: 20, category: 'custom', type: 'main' });
@@ -216,19 +288,27 @@ export default function App() {
           },
           createdAt: serverTimestamp()
         };
-        setDoc(userDocRef, initialData);
+        setDoc(userDocRef, initialData).catch(err => {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, setSystemError);
+        });
       }
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`, setSystemError);
     });
 
     const unsubQuests = onSnapshot(questsRef, (snapshot) => {
       const qList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Quest));
       setQuests(qList);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}/quests`, setSystemError);
     });
 
     const unsubActivities = onSnapshot(query(activitiesRef, orderBy('timestamp', 'desc'), limit(10)), (snapshot) => {
       const aList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Activity));
       setActivities(aList);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}/activities`, setSystemError);
     });
 
     return () => {
@@ -270,12 +350,16 @@ export default function App() {
       updates[`stats.${statKey}`] = (userData.stats[statKey] || 0) + 1;
     }
 
-    await updateDoc(doc(db, 'users', user.uid), updates);
-    await addDoc(collection(db, 'users', user.uid, 'activities'), {
-      action,
-      xpGained: amount,
-      timestamp: serverTimestamp()
-    });
+    try {
+      await updateDoc(doc(db, 'users', user.uid), updates);
+      await addDoc(collection(db, 'users', user.uid, 'activities'), {
+        action,
+        xpGained: amount,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`, setSystemError);
+    }
 
     setXpFeedback({ amount, id: Date.now() });
     setTimeout(() => setXpFeedback(null), 2000);
@@ -298,10 +382,14 @@ export default function App() {
       custom: 'discipline'
     };
 
-    await updateDoc(doc(db, 'users', user.uid, 'quests', quest.id), {
-      completed: true,
-      completedAt: serverTimestamp()
-    });
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'quests', quest.id), {
+        completed: true,
+        completedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/quests/${quest.id}`, setSystemError);
+    }
 
     addXP(finalAmount, action, categoryMap[quest.category] || 'discipline');
 
@@ -316,15 +404,23 @@ export default function App() {
   const deleteQuest = async (questId: string) => {
     if (!user) return;
     const { deleteDoc, doc } = await import('firebase/firestore');
-    await deleteDoc(doc(db, 'users', user.uid, 'quests', questId));
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'quests', questId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/quests/${questId}`, setSystemError);
+    }
   };
 
   const resetQuest = async (questId: string) => {
     if (!user) return;
-    await updateDoc(doc(db, 'users', user.uid, 'quests', questId), {
-      completed: false,
-      completedAt: null
-    });
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'quests', questId), {
+        completed: false,
+        completedAt: null
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/quests/${questId}`, setSystemError);
+    }
   };
 
   const handlePenalty = (amount: number, action: string) => {
@@ -346,6 +442,36 @@ export default function App() {
       { subject: 'Discipline', A: userData.stats.discipline, fullMark: 100 },
     ];
   }, [userData]);
+
+  if (systemError) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-zinc-950 border border-rose-900/50 p-8 rounded-2xl text-center space-y-4">
+          <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto" />
+          <h1 className="text-xl font-bold">System Error</h1>
+          <p className="text-zinc-400 text-sm">{systemError}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-3 bg-rose-600 hover:bg-rose-500 rounded-xl font-bold transition-colors"
+          >
+            Reboot System
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (dbError) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-zinc-950 border border-rose-900/50 p-8 rounded-2xl text-center space-y-4">
+          <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto" />
+          <h1 className="text-xl font-bold">Configuration Error</h1>
+          <p className="text-zinc-400 text-sm">{dbError}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
