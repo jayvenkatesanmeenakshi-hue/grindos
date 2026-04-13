@@ -82,7 +82,7 @@ service cloud.firestore {
     function isValidQuest(data) {
       return hasRequiredFields(['title', 'type', 'category', 'xpReward', 'completed', 'createdAt']) &&
              data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
-             data.type in ['daily', 'side'] &&
+             data.type in ['main', 'side'] &&
              data.xpReward is number && data.xpReward > 0 &&
              data.completed is bool &&
              data.createdAt is timestamp;

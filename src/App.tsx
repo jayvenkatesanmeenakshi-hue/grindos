@@ -87,7 +87,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, setSystemError?: (err: string) => void) {
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, setSystemError?: (err: string) => void, setLoading?: (loading: boolean) => void) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -107,8 +107,17 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   console.error('Firestore Error:', JSON.stringify(errInfo));
+  
+  if (setLoading) setLoading(false);
+  
   if (setSystemError) {
-    setSystemError(errInfo.error);
+    let friendlyMessage = errInfo.error;
+    if (errInfo.error.includes('permission-denied')) {
+      friendlyMessage = "Permission Denied: Please ensure you have created the Firestore Database in your Firebase Console and deployed the security rules.";
+    } else if (errInfo.error.includes('not-found')) {
+      friendlyMessage = "Database Not Found: Please ensure you have initialized Firestore in your Firebase Console.";
+    }
+    setSystemError(friendlyMessage);
   }
   return new Error(JSON.stringify(errInfo));
 }
@@ -302,12 +311,12 @@ export default function App() {
           createdAt: serverTimestamp()
         };
         setDoc(userDocRef, initialData).catch(err => {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, setSystemError);
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, setSystemError, setLoading);
         });
       }
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`, setSystemError);
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`, setSystemError, setLoading);
     });
 
     const unsubQuests = onSnapshot(questsRef, (snapshot) => {
@@ -521,12 +530,15 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
         <motion.div 
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
         />
+        <p className="text-zinc-500 font-mono text-xs animate-pulse uppercase tracking-widest">
+          Initializing System...
+        </p>
       </div>
     );
   }
