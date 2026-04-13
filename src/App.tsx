@@ -253,8 +253,32 @@ export default function App() {
     setNewQuest({ title: '', xp: 20, category: 'custom', type: 'main' });
   };
 
+  // Connection Test
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, '_internal_', 'connection_test'));
+        console.log('Firestore Connection: Verified');
+      } catch (error: any) {
+        if (error.message.includes('the client is offline')) {
+          console.error('Firestore Configuration Error: The client is offline. Please check your Database ID.');
+          setDbError('Database connection failed. The client is offline. This usually means the Database ID in your configuration is incorrect or the database is not provisioned.');
+        }
+      }
+    };
+    testConnection();
+  }, []);
+
   // Auth Listener
   useEffect(() => {
+    // Handle redirect result
+    getRedirectResult(auth).catch((err) => {
+      console.error('Redirect Result Error:', err);
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setSystemError(`Login failed: ${err.message}`);
+      }
+    });
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (u) {
@@ -345,7 +369,6 @@ export default function App() {
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
-    // Force account selection to help with session issues
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
@@ -360,12 +383,22 @@ export default function App() {
       } else if (err.code === 'auth/popup-blocked') {
         setSystemError("Login failed: The popup was blocked by your browser. Please allow popups for this site.");
       } else if (err.code === 'auth/popup-closed-by-user') {
-        // Silently handle
+        setSystemError("Login cancelled: The login popup was closed before completion. If popups are failing, try the 'Login with Redirect' option below.");
       } else if (err.code === 'auth/internal-error' || err.code === 'auth/network-request-failed') {
         setSystemError("Login failed: This is often caused by blocked third-party cookies or network issues. Please try again.");
       } else {
         setSystemError(`Login failed: ${err.message} (${err.code})`);
       }
+    }
+  };
+
+  const handleLoginRedirect = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
+      await signInWithRedirect(auth, provider);
+    } catch (err: any) {
+      setSystemError(`Redirect Login failed: ${err.message}`);
     }
   };
 
@@ -487,21 +520,30 @@ export default function App() {
           <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto" />
           <h1 className="text-xl font-bold">System Error</h1>
           <p className="text-zinc-400 text-sm">{systemError}</p>
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3">
             <button 
               onClick={() => {
                 setSystemError(null);
                 handleLogin();
               }}
-              className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition-colors text-sm"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition-colors text-sm"
             >
-              Retry Login
+              Retry Login (Popup)
+            </button>
+            <button 
+              onClick={() => {
+                setSystemError(null);
+                handleLoginRedirect();
+              }}
+              className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-bold transition-colors text-sm"
+            >
+              Login with Redirect (Fallback)
             </button>
             <button 
               onClick={() => window.location.reload()}
-              className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-bold transition-colors text-sm"
+              className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl font-bold transition-colors text-sm border border-zinc-800"
             >
-              Reboot
+              Reboot App
             </button>
           </div>
         </div>

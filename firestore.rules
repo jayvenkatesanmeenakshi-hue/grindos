@@ -1,6 +1,46 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Fields:
+    //   - username: string (required, 3-30 chars)
+    //   - level: number (required, >= 1)
+    //   - xp: number (required, >= 0)
+    //   - streak: number (required, >= 0)
+    //   - lastActive: timestamp (optional)
+    //   - stats: map (required)
+    //     - knowledge: number
+    //     - skill: number
+    //     - relationships: number
+    //     - creation: number
+    //     - discipline: number
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: /users/{userId}/quests/{questId}
+    // Fields:
+    //   - title: string (required, 1-100 chars)
+    //   - type: string (required, 'daily' or 'side')
+    //   - category: string (required)
+    //   - xpReward: number (required, > 0)
+    //   - completed: bool (required)
+    //   - completedAt: timestamp (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: /users/{userId}/activities/{activityId}
+    // Fields:
+    //   - action: string (required)
+    //   - xpGained: number (required)
+    //   - timestamp: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
     
     function isAuthenticated() {
       return request.auth != null;
@@ -11,22 +51,63 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-             (request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com" && request.auth.token.email_verified == true);
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com" && request.auth.token.email_verified == true));
     }
 
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUser(data) {
+      // Allow partial updates for ecosystem sync, but require core fields for full profile if they are being set
+      return !data.keys().hasAll(['username', 'level', 'xp', 'stats']) || (
+               data.username is string && data.username.size() >= 3 &&
+               data.level is number && data.level >= 1 &&
+               data.xp is number && data.xp >= 0 &&
+               data.stats is map
+             );
+    }
+
+    function isValidQuest(data) {
+      return hasRequiredFields(['title', 'type', 'category', 'xpReward', 'completed', 'createdAt']) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.type in ['main', 'side'] &&
+             data.xpReward is number && data.xpReward > 0 &&
+             data.completed is bool &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidActivity(data) {
+      return hasRequiredFields(['action', 'xpGained', 'timestamp']) &&
+             data.action is string && data.action.size() > 0 &&
+             data.xpGained is number &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
     match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+      // Allow users to read and write their own profile and all subcollections
+      allow read, write: if isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com");
 
       match /quests/{questId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com");
       }
 
       match /activities/{activityId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com");
       }
     }
 
+    // Admin override for all documents
     match /{document=**} {
       allow read, write: if isAdmin();
     }

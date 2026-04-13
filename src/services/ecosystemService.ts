@@ -5,7 +5,15 @@ export const syncEcosystemUser = async (user: any, appName: string) => {
   if (!user) return;
   const docRef = doc(db, 'users', user.uid);
   try {
-    const docSnap = await getDocFromServer(docRef).catch(() => getDoc(docRef));
+    // Try server first, but fallback to cache if offline
+    let docSnap;
+    try {
+      docSnap = await getDocFromServer(docRef);
+    } catch (serverError: any) {
+      console.warn('Server fetch failed, falling back to cache:', serverError.message);
+      docSnap = await getDoc(docRef);
+    }
+    
     const existingData = docSnap.exists() ? docSnap.data() : null;
     const appsUsed = existingData?.appsUsed || [];
     if (!appsUsed.includes(appName)) {
