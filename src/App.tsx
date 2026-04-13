@@ -255,6 +255,10 @@ export default function App() {
 
   // Connection Test
   useEffect(() => {
+    console.log('Firestore Config:', {
+      projectId: (auth.app.options as any).projectId,
+      databaseId: (db as any)._databaseId?.database || 'default'
+    });
     const testConnection = async () => {
       try {
         await getDocFromServer(doc(db, '_internal_', 'connection_test'));
@@ -342,16 +346,20 @@ export default function App() {
     });
 
     const unsubQuests = onSnapshot(questsRef, (snapshot) => {
+      console.log('Quests Snapshot received:', snapshot.size, 'documents');
       const qList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Quest));
       setQuests(qList);
     }, (error) => {
+      console.error('Quests Snapshot Error:', error);
       handleFirestoreError(error, OperationType.GET, `users/${user.uid}/quests`, setSystemError);
     });
 
     const unsubActivities = onSnapshot(query(activitiesRef, orderBy('timestamp', 'desc'), limit(10)), (snapshot) => {
+      console.log('Activities Snapshot received:', snapshot.size, 'documents');
       const aList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Activity));
       setActivities(aList);
     }, (error) => {
+      console.error('Activities Snapshot Error:', error);
       handleFirestoreError(error, OperationType.GET, `users/${user.uid}/activities`, setSystemError);
     });
 
