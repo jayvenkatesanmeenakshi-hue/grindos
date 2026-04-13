@@ -214,17 +214,6 @@ export default function App() {
   const [newQuest, setNewQuest] = useState({ title: '', xp: 20, category: 'custom', type: 'main' as 'main' | 'side' });
   const [dbError, setDbError] = useState<string | null>(null);
   const [systemError, setSystemError] = useState<string | null>(null);
-  const [authMethod, setAuthMethod] = useState<'popup' | 'redirect'>('redirect');
-
-  // Handle Redirect Result
-  useEffect(() => {
-    getRedirectResult(auth).catch((err: any) => {
-      console.error('Redirect Result Error:', err);
-      if (err.code === 'auth/unauthorized-domain') {
-        setSystemError(`Login failed: This domain is not authorized. Please add "${window.location.hostname}" to Firebase > Auth > Settings > Authorized domains.`);
-      }
-    });
-  }, []);
 
   // Connection Test
   useEffect(() => {
@@ -355,11 +344,7 @@ export default function App() {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      if (authMethod === 'popup') {
-        await signInWithPopup(auth, provider);
-      } else {
-        await signInWithRedirect(auth, provider);
-      }
+      await signInWithPopup(auth, provider);
     } catch (err: any) {
       console.error('Login Error:', err);
       
@@ -368,11 +353,11 @@ export default function App() {
       } else if (err.code === 'auth/operation-not-allowed') {
         setSystemError("Login failed: Google Sign-In is not enabled in your Firebase Console. Please enable it in Authentication > Sign-in method.");
       } else if (err.code === 'auth/popup-blocked') {
-        setSystemError("Login failed: The popup was blocked by your browser. Please allow popups or try the 'Redirect Mode' below.");
+        setSystemError("Login failed: The popup was blocked by your browser. Please allow popups for this site.");
       } else if (err.code === 'auth/popup-closed-by-user') {
         // Silently handle
       } else if (err.code === 'auth/internal-error' || err.code === 'auth/network-request-failed') {
-        setSystemError("Login failed: This is often caused by 'Cross-Origin' security headers or blocked third-party cookies. Try switching to 'Redirect Mode' below.");
+        setSystemError("Login failed: This is often caused by blocked third-party cookies or network issues. Please try again.");
       } else {
         setSystemError(`Login failed: ${err.message} (${err.code})`);
       }
@@ -501,12 +486,11 @@ export default function App() {
             <button 
               onClick={() => {
                 setSystemError(null);
-                setAuthMethod('redirect');
                 handleLogin();
               }}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition-colors text-sm"
             >
-              Try Redirect Mode
+              Retry Login
             </button>
             <button 
               onClick={() => window.location.reload()}
@@ -613,34 +597,6 @@ export default function App() {
             <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
 
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <p className="text-[10px] text-zinc-500 font-mono uppercase">Login Method</p>
-            <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800">
-              <button 
-                onClick={() => setAuthMethod('popup')}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-[10px] font-bold transition-all",
-                  authMethod === 'popup' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                POPUP
-              </button>
-              <button 
-                onClick={() => setAuthMethod('redirect')}
-                className={cn(
-                  "px-4 py-1.5 rounded-md text-[10px] font-bold transition-all",
-                  authMethod === 'redirect' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
-                )}
-              >
-                REDIRECT
-              </button>
-            </div>
-            {authMethod === 'redirect' && (
-              <p className="text-[10px] text-blue-500/60 font-mono text-center max-w-[200px]">
-                Recommended for custom domains or browsers blocking popups.
-              </p>
-            )}
-          </div>
           <p className="mt-6 text-xs text-zinc-600 font-mono uppercase tracking-widest">
             v1.0.0 // System Online
           </p>
