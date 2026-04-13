@@ -1,9 +1,10 @@
 {
-  "apiKey": "AIzaSyB2ejmUwfg0uTTAfD9NEpItTGucBxKyMMs",
-  "authDomain": "grindos-b8871.firebaseapp.com",
-  "projectId": "grindos-b8871",
-  "storageBucket": "grindos-b8871.firebasestorage.app",
-  "messagingSenderId": "336214109676",
-  "appId": "1:336214109676:web:158738dab00fc2a9d124c9",
-  "measurementId": "G-PG9VKYHDKN"
+  "projectId": "gen-lang-client-0653546461",
+  "appId": "1:284302123988:web:539af383a282d399546c41",
+  "apiKey": "AIzaSyB-PCtfyvVk4jgKR3fwK78vhqPC0W_0lqA",
+  "authDomain": "gen-lang-client-0653546461.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-b01f7cc1-a387-4e70-ac1f-092def9e2753",
+  "storageBucket": "gen-lang-client-0653546461.firebasestorage.app",
+  "messagingSenderId": "284302123988",
+  "measurementId": ""
 }

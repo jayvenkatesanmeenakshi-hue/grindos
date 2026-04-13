@@ -1,46 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: /users/{userId}
-    // Fields:
-    //   - username: string (required, 3-30 chars)
-    //   - level: number (required, >= 1)
-    //   - xp: number (required, >= 0)
-    //   - streak: number (required, >= 0)
-    //   - lastActive: timestamp (optional)
-    //   - stats: map (required)
-    //     - knowledge: number
-    //     - skill: number
-    //     - relationships: number
-    //     - creation: number
-    //     - discipline: number
-    //   - createdAt: timestamp (required)
-    //
-    // Collection: /users/{userId}/quests/{questId}
-    // Fields:
-    //   - title: string (required, 1-100 chars)
-    //   - type: string (required, 'daily' or 'side')
-    //   - category: string (required)
-    //   - xpReward: number (required, > 0)
-    //   - completed: bool (required)
-    //   - completedAt: timestamp (optional)
-    //   - createdAt: timestamp (required)
-    //
-    // Collection: /users/{userId}/activities/{activityId}
-    // Fields:
-    //   - action: string (required)
-    //   - xpGained: number (required)
-    //   - timestamp: timestamp (required)
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
     
     function isAuthenticated() {
       return request.auth != null;
@@ -51,78 +11,24 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() && 
+             (request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com" && request.auth.token.email_verified == true);
     }
-
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
-    }
-
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    function isValidUser(data) {
-      return hasRequiredFields(['username', 'level', 'xp', 'streak', 'stats', 'createdAt']) &&
-             data.username is string && data.username.size() >= 3 && data.username.size() <= 30 &&
-             data.level is number && data.level >= 1 &&
-             data.xp is number && data.xp >= 0 &&
-             data.streak is number && data.streak >= 0 &&
-             data.stats is map &&
-             data.stats.knowledge is number &&
-             data.stats.skill is number &&
-             data.stats.relationships is number &&
-             data.stats.creation is number &&
-             data.stats.discipline is number &&
-             data.createdAt is timestamp;
-    }
-
-    function isValidQuest(data) {
-      return hasRequiredFields(['title', 'type', 'category', 'xpReward', 'completed', 'createdAt']) &&
-             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
-             data.type in ['main', 'side'] &&
-             data.xpReward is number && data.xpReward > 0 &&
-             data.completed is bool &&
-             data.createdAt is timestamp;
-    }
-
-    function isValidActivity(data) {
-      return hasRequiredFields(['action', 'xpGained', 'timestamp']) &&
-             data.action is string && data.action.size() > 0 &&
-             data.xpGained is number &&
-             data.timestamp is timestamp;
-    }
-
-    // ===============================================================
-    // Rules
-    // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data);
-      allow delete: if isAdmin();
+      allow read, write: if isOwner(userId) || isAdmin();
 
       match /quests/{questId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && isValidQuest(request.resource.data);
-        allow update: if isOwner(userId) && isValidQuest(request.resource.data);
-        allow delete: if isOwner(userId) || isAdmin();
+        allow read, write: if isOwner(userId) || isAdmin();
       }
 
       match /activities/{activityId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && isValidActivity(request.resource.data);
-        allow update: if false; // Activities are immutable logs
-        allow delete: if isAdmin();
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
-    // Default deny
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
     }
   }
 }

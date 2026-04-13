@@ -279,17 +279,18 @@ export default function App() {
 
     const unsubUser = onSnapshot(userDocRef, (doc) => {
       console.log('User Snapshot received:', doc.exists() ? 'Exists' : 'Not Found');
-      if (doc.exists()) {
-        const data = doc.data() as UserData;
+      const data = doc.data() as UserData | undefined;
+      
+      if (doc.exists() && data?.level !== undefined) {
         if (userData && data.level > userData.level) {
           setShowLevelUp(true);
           setTimeout(() => setShowLevelUp(false), 3000);
         }
         setUserData(data);
       } else {
-        console.log('Initializing new user profile...');
-        // Initialize new user
-        const initialData: UserData = {
+        console.log('Initializing or completing user profile...');
+        // Initialize new user or complete partial ecosystem profile
+        const initialData: any = {
           username: user.displayName || 'Player',
           level: 1,
           xp: 0,
@@ -304,7 +305,8 @@ export default function App() {
           },
           createdAt: serverTimestamp()
         };
-        setDoc(userDocRef, initialData).catch(err => {
+        // Use merge: true to preserve ecosystem fields like appsUsed
+        setDoc(userDocRef, initialData, { merge: true }).catch(err => {
           console.error('Failed to initialize user:', err);
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, setSystemError, setLoading);
         });
@@ -468,13 +470,13 @@ export default function App() {
   }, [userData]);
 
   const radarData = useMemo(() => {
-    if (!userData) return [];
+    if (!userData || !userData.stats) return [];
     return [
-      { subject: 'Knowledge', A: userData.stats.knowledge, fullMark: 100 },
-      { subject: 'Skill', A: userData.stats.skill, fullMark: 100 },
-      { subject: 'Relationships', A: userData.stats.relationships, fullMark: 100 },
-      { subject: 'Creation', A: userData.stats.creation, fullMark: 100 },
-      { subject: 'Discipline', A: userData.stats.discipline, fullMark: 100 },
+      { subject: 'Knowledge', A: userData.stats.knowledge || 0, fullMark: 100 },
+      { subject: 'Skill', A: userData.stats.skill || 0, fullMark: 100 },
+      { subject: 'Relationships', A: userData.stats.relationships || 0, fullMark: 100 },
+      { subject: 'Creation', A: userData.stats.creation || 0, fullMark: 100 },
+      { subject: 'Discipline', A: userData.stats.discipline || 0, fullMark: 100 },
     ];
   }, [userData]);
 
