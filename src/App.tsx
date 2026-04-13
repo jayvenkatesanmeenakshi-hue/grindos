@@ -286,6 +286,7 @@ export default function App() {
     const activitiesRef = collection(db, 'users', user.uid, 'activities');
 
     const unsubUser = onSnapshot(userDocRef, (doc) => {
+      console.log('User Snapshot received:', doc.exists() ? 'Exists' : 'Not Found');
       if (doc.exists()) {
         const data = doc.data() as UserData;
         if (userData && data.level > userData.level) {
@@ -294,6 +295,7 @@ export default function App() {
         }
         setUserData(data);
       } else {
+        console.log('Initializing new user profile...');
         // Initialize new user
         const initialData: UserData = {
           username: user.displayName || 'Player',
@@ -311,11 +313,13 @@ export default function App() {
           createdAt: serverTimestamp()
         };
         setDoc(userDocRef, initialData).catch(err => {
+          console.error('Failed to initialize user:', err);
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, setSystemError, setLoading);
         });
       }
       setLoading(false);
     }, (error) => {
+      console.error('User Snapshot Error:', error);
       handleFirestoreError(error, OperationType.GET, `users/${user.uid}`, setSystemError, setLoading);
     });
 
@@ -530,15 +534,49 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"
-        />
-        <p className="text-zinc-500 font-mono text-xs animate-pulse uppercase tracking-widest">
-          Initializing System...
-        </p>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-6 p-6">
+        <div className="relative">
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+          />
+          <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-blue-500 animate-pulse" />
+        </div>
+        
+        <div className="text-center space-y-2">
+          <p className="text-white font-bold tracking-tighter text-xl">GrindOS</p>
+          <p className="text-zinc-500 font-mono text-[10px] animate-pulse uppercase tracking-[0.2em]">
+            {user ? "Synchronizing Neural Link..." : "Booting Core Systems..."}
+          </p>
+        </div>
+
+        {user && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 5 }}
+            className="mt-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl max-w-xs text-center"
+          >
+            <p className="text-xs text-zinc-400 mb-4 leading-relaxed">
+              Connection taking longer than expected. This usually means Firestore is not yet initialized in your console.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => setLoading(false)}
+                className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-bold rounded-lg transition-all"
+              >
+                FORCE START DASHBOARD
+              </button>
+              <button 
+                onClick={() => signOut(auth)}
+                className="w-full py-2 text-zinc-500 hover:text-rose-400 text-[10px] font-bold transition-all"
+              >
+                SIGN OUT & RETRY
+              </button>
+            </div>
+          </motion.div>
+        )}
       </div>
     );
   }
