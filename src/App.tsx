@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   auth, db 
 } from './firebase';
+import { syncEcosystemUser } from './services/ecosystemService';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -256,7 +257,9 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (!u) {
+      if (u) {
+        syncEcosystemUser(u, 'GrindOS');
+      } else {
         setUserData(null);
         setQuests([]);
         setActivities([]);
