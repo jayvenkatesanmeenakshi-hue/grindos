@@ -1,13 +1,15 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// Support both named databases (AI Studio default) and the default database (manual setup)
-export const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
-
 export const auth = getAuth(app);
+
+// Use getFirestore for more standard initialization
+export const db = (firebaseConfig as any).firestoreDatabaseId 
+  ? getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
+  : getFirestore(app);
 
 export default app;

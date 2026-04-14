@@ -261,12 +261,16 @@ export default function App() {
     });
     const testConnection = async () => {
       try {
+        console.log('Testing Firestore Connection...');
         await getDocFromServer(doc(db, '_internal_', 'connection_test'));
         console.log('Firestore Connection: Verified');
+        setDbError(null);
       } catch (error: any) {
+        console.error('Connection Test Failed:', error.message);
         if (error.message.includes('the client is offline')) {
-          console.error('Firestore Configuration Error: The client is offline. Please check your Database ID.');
-          setDbError('Database connection failed. The client is offline. This usually means the Database ID in your configuration is incorrect or the database is not provisioned.');
+          setDbError('Database connection failed. The client is offline. This usually means the Database ID is incorrect or the database is not provisioned.');
+        } else if (error.message.includes('permission-denied')) {
+          console.warn('Connection test permission denied - this is expected if not logged in and rules are strict.');
         }
       }
     };

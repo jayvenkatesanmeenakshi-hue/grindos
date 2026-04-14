@@ -1,35 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    function isAuthenticated() {
-      return request.auth != null;
+    match /_internal_/{docId} {
+      allow read: if true;
     }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isAdmin() {
-      return isAuthenticated() && 
-             request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com" && 
-             request.auth.token.email_verified == true;
-    }
-
-    match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
-      
-      match /quests/{questId} {
-        allow read, write: if isOwner(userId) || isAdmin();
-      }
-
-      match /activities/{activityId} {
-        allow read, write: if isOwner(userId) || isAdmin();
-      }
-    }
-
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read, write: if request.auth != null;
     }
   }
 }
