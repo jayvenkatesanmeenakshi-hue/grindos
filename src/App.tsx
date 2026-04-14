@@ -47,7 +47,8 @@ import {
   ShieldAlert,
   Users,
   Heart,
-  ListChecks
+  ListChecks,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -255,22 +256,16 @@ export default function App() {
 
   // Connection Test
   useEffect(() => {
-    console.log('Firestore Config:', {
-      projectId: (auth.app.options as any).projectId,
-      databaseId: (db as any)._databaseId?.database || 'default'
-    });
     const testConnection = async () => {
       try {
-        console.log('Testing Firestore Connection...');
         await getDocFromServer(doc(db, '_internal_', 'connection_test'));
         console.log('Firestore Connection: Verified');
         setDbError(null);
       } catch (error: any) {
-        console.error('Connection Test Failed:', error.message);
         if (error.message.includes('the client is offline')) {
-          setDbError('Database connection failed. The client is offline. This usually means the Database ID is incorrect or the database is not provisioned.');
+          setDbError('Database connection failed. The client is offline.');
         } else if (error.message.includes('permission-denied')) {
-          console.warn('Connection test permission denied - this is expected if not logged in and rules are strict.');
+          setDbError(null); 
         }
       }
     };
@@ -624,6 +619,19 @@ export default function App() {
     );
   }
 
+  const handleDownloadLogo = () => {
+    const svgData = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#3b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'></polygon></svg>`;
+    const blob = new Blob([svgData], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'grindos-logo.svg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -678,6 +686,13 @@ export default function App() {
               <span className="text-xs font-mono text-zinc-500 uppercase">{currentTitle}</span>
               <span className="text-sm font-bold">{userData?.username}</span>
             </div>
+            <button 
+              onClick={handleDownloadLogo}
+              title="Download Logo (Temporary)"
+              className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-500 hover:text-blue-500"
+            >
+              <Download className="w-5 h-5" />
+            </button>
             <button 
               onClick={handleLogout}
               className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-500 hover:text-white"
