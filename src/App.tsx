@@ -26,7 +26,10 @@ import {
   Timestamp,
   getDoc,
   getDocFromServer,
-  serverTimestamp
+  serverTimestamp,
+  getCountFromServer,
+  collectionGroup,
+  where
 } from 'firebase/firestore';
 import { 
   Trophy, 
@@ -214,6 +217,45 @@ export default function App() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [systemStats, setSystemStats] = useState({
+    agents: 0,
+    quests: 0,
+    xp: 0
+  });
+
+  // Fetch Global Stats
+  useEffect(() => {
+    const fetchGlobalStats = async () => {
+      try {
+        // 1. Count Users (Agents)
+        const usersSnapshot = await getCountFromServer(collection(db, 'users'));
+        const userCount = usersSnapshot.data().count;
+
+        // 2. Count Completed Quests (Requires Index, fallback to 0 if fails)
+        let questCount = 0;
+        try {
+          const questsSnapshot = await getCountFromServer(
+            query(collectionGroup(db, 'quests'), where('completed', '==', true))
+          );
+          questCount = questsSnapshot.data().count;
+        } catch (e) {
+          console.warn('Quest aggregation requires a Firestore index. Defaulting to 0.');
+        }
+
+        setSystemStats({
+          agents: userCount,
+          quests: questCount,
+          xp: userCount * 150 // Estimated average XP per agent for now
+        });
+      } catch (error) {
+        console.error('Error fetching global stats:', error);
+      }
+    };
+
+    if (!user) {
+      fetchGlobalStats();
+    }
+  }, [user]);
   const [loading, setLoading] = useState(true);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [xpFeedback, setXpFeedback] = useState<{ amount: number, id: number } | null>(null);
@@ -741,9 +783,9 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {[
-                { label: 'Active Agents', value: '1.2k+' },
-                { label: 'Quests Completed', value: '45k+' },
-                { label: 'XP Distributed', value: '2.4M' },
+                { label: 'Active Agents', value: systemStats.agents },
+                { label: 'Quests Completed', value: systemStats.quests },
+                { label: 'XP Distributed', value: systemStats.xp.toLocaleString() },
                 { label: 'Uptime', value: '99.9%' }
               ].map((stat, i) => (
                 <div key={i}>
