@@ -15,9 +15,23 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Public read for connection testing
+    // Public read for connection testing and system stats
     match /_internal_/{docId} {
       allow read: if true;
+    }
+
+    match /system_stats/{docId} {
+      allow read: if true;
+      // Allow authenticated users to increment counters
+      allow update: if isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userCount', 'questCount', 'xpTotal']) &&
+        (request.resource.data.userCount == resource.data.userCount + 1 || request.resource.data.userCount == resource.data.userCount) &&
+        (request.resource.data.questCount >= resource.data.questCount) &&
+        (request.resource.data.xpTotal >= resource.data.xpTotal);
+      // Admin can do anything
+      allow create, delete: if isAuthenticated() && 
+        request.auth.token.email == "jayvenkatesanmeenakshi@gmail.com" && 
+        request.auth.token.email_verified == true;
     }
 
     // Admin access

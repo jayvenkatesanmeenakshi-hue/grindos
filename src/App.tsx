@@ -29,7 +29,8 @@ import {
   serverTimestamp,
   getCountFromServer,
   collectionGroup,
-  where
+  where,
+  increment
 } from 'firebase/firestore';
 import { 
   Trophy, 
@@ -225,36 +226,37 @@ export default function App() {
 
   // Fetch Global Stats
   useEffect(() => {
-    const fetchGlobalStats = async () => {
-      try {
-        // 1. Count Users (Agents)
-        const usersSnapshot = await getCountFromServer(collection(db, 'users'));
-        const userCount = usersSnapshot.data().count;
-
-        // 2. Count Completed Quests (Requires Index, fallback to 0 if fails)
-        let questCount = 0;
-        try {
-          const questsSnapshot = await getCountFromServer(
-            query(collectionGroup(db, 'quests'), where('completed', '==', true))
-          );
-          questCount = questsSnapshot.data().count;
-        } catch (e) {
-          console.warn('Quest aggregation requires a Firestore index. Defaulting to 0.');
-        }
-
+    const statsRef = doc(db, 'system_stats', 'global');
+    const unsub = onSnapshot(statsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
         setSystemStats({
-          agents: userCount,
-          quests: questCount,
-          xp: userCount * 150 // Estimated average XP per agent for now
+          agents: data.userCount || 0,
+          quests: data.questCount || 0,
+          xp: data.xpTotal || 0
         });
-      } catch (error) {
-        console.error('Error fetching global stats:', error);
+      } else {
+        // If stats don't exist, perform a one-time count for the UI
+        getCountFromServer(collection(db, 'users')).then(snap => {
+          setSystemStats(prev => ({ ...prev, agents: snap.data().count }));
+        });
+        
+        // Try to initialize as admin
+        if (user?.email === "jayvenkatesanmeenakshi@gmail.com") {
+          getCountFromServer(collection(db, 'users')).then(snap => {
+            setDoc(statsRef, { userCount: snap.data().count, questCount: 0, xpTotal: 0 });
+          });
+        }
       }
-    };
+    }, (err) => {
+      console.warn('Global stats snapshot failed, falling back to count query:', err);
+      // Fallback to count query if snapshot fails (e.g. permission denied on doc)
+      getCountFromServer(collection(db, 'users')).then(snap => {
+        setSystemStats(prev => ({ ...prev, agents: snap.data().count }));
+      });
+    });
 
-    if (!user) {
-      fetchGlobalStats();
-    }
+    return () => unsub();
   }, [user]);
   const [loading, setLoading] = useState(true);
   const [showLevelUp, setShowLevelUp] = useState(false);
@@ -351,11 +353,11 @@ export default function App() {
     const questsRef = collection(db, 'users', user.uid, 'quests');
     const activitiesRef = collection(db, 'users', user.uid, 'activities');
 
-    const unsubUser = onSnapshot(userDocRef, (doc) => {
-      console.log('User Snapshot received:', doc.exists() ? 'Exists' : 'Not Found');
-      const data = doc.data() as UserData | undefined;
+    const unsubUser = onSnapshot(userDocRef, (userSnapshot) => {
+      console.log('User Snapshot received:', userSnapshot.exists() ? 'Exists' : 'Not Found');
+      const data = userSnapshot.data() as UserData | undefined;
       
-      if (doc.exists() && data?.level !== undefined) {
+      if (userSnapshot.exists() && data?.level !== undefined) {
         if (userData && data.level > userData.level) {
           setShowLevelUp(true);
           setTimeout(() => setShowLevelUp(false), 3000);
@@ -380,7 +382,12 @@ export default function App() {
           createdAt: serverTimestamp()
         };
         // Use merge: true to preserve ecosystem fields like appsUsed
-        setDoc(userDocRef, initialData, { merge: true }).catch(err => {
+        setDoc(userDocRef, initialData, { merge: true }).then(() => {
+          // Increment global user count
+          updateDoc(doc(db, 'system_stats', 'global'), {
+            userCount: increment(1)
+          }).catch(e => console.warn('Failed to increment global user count:', e));
+        }).catch(err => {
           console.error('Failed to initialize user:', err);
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, setSystemError, setLoading);
         });
@@ -507,10 +514,17 @@ export default function App() {
     };
 
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'quests', quest.id), {
+      const questRef = doc(db, 'users', user.uid, 'quests', quest.id);
+      await updateDoc(questRef, {
         completed: true,
         completedAt: serverTimestamp()
       });
+
+      // Update global stats
+      updateDoc(doc(db, 'system_stats', 'global'), {
+        questCount: increment(1),
+        xpTotal: increment(finalAmount)
+      }).catch(e => console.warn('Failed to update global quest stats:', e));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/quests/${quest.id}`, setSystemError);
     }
