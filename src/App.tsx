@@ -48,7 +48,12 @@ import {
   Users,
   Heart,
   ListChecks,
-  Download
+  Download,
+  Target,
+  Layers,
+  Shield,
+  ArrowRight,
+  Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -651,40 +656,191 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* Background Accents */}
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-900/20 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/20 blur-[120px] rounded-full" />
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="z-10 text-center max-w-md"
-        >
-          <div className="mb-8 flex justify-center">
-            <div className="w-20 h-20 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(59,130,246,0.2)]">
-              <Zap className="w-10 h-10 text-blue-500 fill-blue-500/20" />
+      <div className="min-h-screen bg-black text-white selection:bg-blue-500/30 overflow-x-hidden">
+        {/* Navigation */}
+        <nav className="fixed top-0 w-full z-50 bg-black/50 backdrop-blur-xl border-b border-white/5 px-6 py-4">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Zap className="w-6 h-6 text-blue-500 fill-blue-500/20" />
+              <span className="font-bold tracking-tighter text-xl uppercase">GrindOS</span>
+            </div>
+            <button 
+              onClick={handleLogin}
+              className="text-sm font-mono uppercase tracking-widest hover:text-blue-400 transition-colors"
+            >
+              [ Login ]
+            </button>
+          </div>
+        </nav>
+
+        {/* Hero Section */}
+        <section className="relative pt-32 pb-20 px-6 overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none">
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full animate-pulse" />
+          </div>
+
+          <div className="max-w-7xl mx-auto relative z-10">
+            <div className="flex flex-col items-center text-center">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+                className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono uppercase tracking-widest"
+              >
+                <Star className="w-3 h-3 fill-current" />
+                System Version 1.0.4 // Active
+              </motion.div>
+
+              <motion.h1 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.85] mb-8 uppercase italic"
+              >
+                Turn Life <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500">Into The Grind</span>
+              </motion.h1>
+
+              <motion.p 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="max-w-2xl text-zinc-400 text-lg md:text-xl leading-relaxed mb-12"
+              >
+                The ultimate productivity OS for high-performers. Track XP, level up your real-world stats, and dominate your daily quests.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
+              >
+                <button 
+                  onClick={handleLogin}
+                  className="group relative px-8 py-4 bg-white text-black font-black rounded-sm overflow-hidden transition-all hover:scale-105 active:scale-95"
+                >
+                  <span className="relative z-10 flex items-center gap-2 uppercase tracking-tighter italic">
+                    Initialize System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                </button>
+                <button 
+                  onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="px-8 py-4 bg-zinc-900 text-white font-bold rounded-sm border border-zinc-800 hover:bg-zinc-800 transition-all uppercase tracking-tighter italic"
+                >
+                  View Specs
+                </button>
+              </motion.div>
             </div>
           </div>
-          <h1 className="text-5xl font-bold tracking-tighter mb-4 bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-transparent">
-            GrindOS
-          </h1>
-          <p className="text-zinc-400 mb-10 text-lg leading-relaxed">
-            Turn your daily life into an RPG. Level up your knowledge, skills, and discipline.
-          </p>
-          <button 
-            onClick={handleLogin}
-            className="w-full py-4 px-8 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 group"
-          >
-            <UserIcon className="w-5 h-5" />
-            Enter the Grind
-            <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-          </button>
+        </section>
 
-          <p className="mt-6 text-xs text-zinc-600 font-mono uppercase tracking-widest">
-            v1.0.0 // System Online
-          </p>
-        </motion.div>
+        {/* Stats Preview / Social Proof */}
+        <section className="py-12 border-y border-white/5 bg-zinc-950/50">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              {[
+                { label: 'Active Agents', value: '1.2k+' },
+                { label: 'Quests Completed', value: '45k+' },
+                { label: 'XP Distributed', value: '2.4M' },
+                { label: 'Uptime', value: '99.9%' }
+              ].map((stat, i) => (
+                <div key={i}>
+                  <div className="text-2xl md:text-3xl font-black text-white mb-1">{stat.value}</div>
+                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Features Grid */}
+        <section id="features" className="py-32 px-6 relative">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5 border border-white/5">
+              {[
+                {
+                  icon: <Target className="w-8 h-8 text-blue-500" />,
+                  title: "Quest Orchestration",
+                  desc: "Break down complex goals into executable daily and side quests with real-time XP rewards."
+                },
+                {
+                  icon: <TrendingUp className="w-8 h-8 text-purple-500" />,
+                  title: "Stat Evolution",
+                  desc: "Monitor your growth across 5 core dimensions: Knowledge, Skill, Relationships, Creation, and Discipline."
+                },
+                {
+                  icon: <Shield className="w-8 h-8 text-emerald-500" />,
+                  title: "Streak Protection",
+                  desc: "Built-in mechanisms to maintain momentum and visualize your consistency over time."
+                },
+                {
+                  icon: <Layers className="w-8 h-8 text-orange-500" />,
+                  title: "Multi-App Sync",
+                  desc: "Seamlessly integrate with the StarVortex ecosystem to track your workflow metrics automatically."
+                },
+                {
+                  icon: <Zap className="w-8 h-8 text-yellow-500" />,
+                  title: "Instant Feedback",
+                  desc: "Experience the dopamine hit of leveling up with high-fidelity visual and haptic feedback."
+                },
+                {
+                  icon: <History className="w-8 h-8 text-pink-500" />,
+                  title: "Activity Archiving",
+                  desc: "Every action is logged. Review your history to optimize your future performance."
+                }
+              ].map((feature, i) => (
+                <div key={i} className="bg-black p-12 hover:bg-zinc-900/50 transition-colors group">
+                  <div className="mb-6 group-hover:scale-110 transition-transform duration-500">
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-xl font-bold mb-4 uppercase italic tracking-tight">{feature.title}</h3>
+                  <p className="text-zinc-500 leading-relaxed text-sm">
+                    {feature.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-32 px-6">
+          <div className="max-w-4xl mx-auto text-center bg-gradient-to-b from-zinc-900 to-black border border-white/5 p-16 rounded-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500" />
+            <h2 className="text-4xl md:text-6xl font-black mb-8 uppercase italic tracking-tighter">
+              Ready to <span className="text-blue-500">Level Up?</span>
+            </h2>
+            <p className="text-zinc-400 mb-12 text-lg">
+              Join the elite circle of high-performers using GrindOS to master their daily lives.
+            </p>
+            <button 
+              onClick={handleLogin}
+              className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-sm transition-all hover:scale-105 active:scale-95 uppercase tracking-tighter italic"
+            >
+              Initialize Your Profile
+            </button>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="py-12 px-6 border-t border-white/5">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-zinc-500" />
+              <span className="font-bold tracking-tighter text-zinc-500 uppercase">GrindOS</span>
+            </div>
+            <div className="flex gap-8 text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
+              <a href="#" className="hover:text-white transition-colors">Privacy</a>
+              <a href="#" className="hover:text-white transition-colors">Terms</a>
+              <a href="#" className="hover:text-white transition-colors">Contact</a>
+            </div>
+            <div className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest">
+              © 2024 StarVortex Systems // All Rights Reserved
+            </div>
+          </div>
+        </footer>
       </div>
     );
   }
