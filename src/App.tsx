@@ -814,10 +814,10 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5 }}
-                className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono uppercase tracking-widest"
+                className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-mono uppercase tracking-[0.2em]"
               >
-                <Star className="w-3 h-3 fill-current" />
-                System Version 1.0.4 // Active
+                <Zap className="w-3 h-3 fill-current" />
+                StarVortexAI Ecosystem // Core Processor v2.2
               </motion.div>
 
               <motion.h1 
@@ -826,8 +826,8 @@ export default function App() {
                 transition={{ delay: 0.1 }}
                 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.85] mb-8 uppercase italic"
               >
-                Turn Life <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500">Into The Grind</span>
+                Master The <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-indigo-400 to-purple-500">Neural Lattice</span>
               </motion.h1>
 
               <motion.p 
@@ -836,7 +836,8 @@ export default function App() {
                 transition={{ delay: 0.2 }}
                 className="max-w-2xl text-zinc-400 text-lg md:text-xl leading-relaxed mb-12"
               >
-                The ultimate productivity OS for high-performers. Track XP, level up your real-world stats, and dominate your daily quests.
+                GrindOS is the central processing unit of the StarVortexAI ecosystem. 
+                Synchronize your discipline, track cross-app synergies, and dominate the digital landscape.
               </motion.p>
 
               <motion.div
@@ -904,9 +905,9 @@ export default function App() {
                   desc: "Built-in mechanisms to maintain momentum and visualize your consistency over time."
                 },
                 {
-                  icon: <Layers className="w-8 h-8 text-orange-500" />,
-                  title: "Multi-App Sync",
-                  desc: "Seamlessly integrate with the StarVortex ecosystem to track your workflow metrics automatically."
+                  icon: <Layers className="w-8 h-8 text-indigo-500" />,
+                  title: "Ecosystem Sync",
+                  desc: "Automatically derive XP from activity in FireInk, ExplainerX, and Passport to build your global profile."
                 },
                 {
                   icon: <Zap className="w-8 h-8 text-yellow-500" />,
@@ -941,7 +942,7 @@ export default function App() {
               Ready to <span className="text-blue-500">Level Up?</span>
             </h2>
             <p className="text-zinc-400 mb-12 text-lg">
-              Join the elite circle of high-performers using GrindOS to master their daily lives.
+              Synchronize your active identity with the StarVortexAI grid. Passport required for system access.
             </p>
             <button 
               onClick={handleLogin}
