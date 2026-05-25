@@ -6,13 +6,11 @@ import {
 import { syncEcosystemUser } from './services/ecosystemService';
 import { 
   onAuthStateChanged, 
-  signInWithPopup, 
-  signInWithRedirect,
-  getRedirectResult,
-  GoogleAuthProvider, 
+  signInWithCustomToken,
   signOut,
   User as FirebaseUser
 } from 'firebase/auth';
+import { Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   doc, 
   onSnapshot, 
@@ -339,24 +337,35 @@ export default function App() {
     testConnection();
   }, []);
 
+  const navigate = useNavigate();
+
   // Auth Listener
   useEffect(() => {
-    // Handle redirect result
-    getRedirectResult(auth).catch((err) => {
-      console.error('Redirect Result Error:', err);
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setSystemError(`Login failed: ${err.message}`);
-      }
-    });
-
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (u) {
         syncEcosystemUser(u, 'GrindOS');
-        // Check for Passport in the global passport collection
+        // Check for Passport in both common collection names to be safe
         const passportRef = doc(db, 'passport', u.uid);
-        onSnapshot(passportRef, (snap) => {
-          setHasPassport(snap.exists());
+        const passportsRef = doc(db, 'passports', u.uid);
+        
+        onSnapshot(passportRef, async (snap) => {
+          if (snap.exists()) {
+            setHasPassport(true);
+          } else {
+            try {
+              const pSnap = await getDoc(passportsRef);
+              if (pSnap.exists()) {
+                setHasPassport(true);
+              } else {
+                // Final check: does the user doc have passport data?
+                // We'll rely on the Data Listener's sync as well
+                setHasPassport(prev => prev === true ? true : false);
+              }
+            } catch {
+              setHasPassport(prev => prev === true ? true : false);
+            }
+          }
         });
       } else {
         setUserData(null);
@@ -387,6 +396,9 @@ export default function App() {
           setTimeout(() => setShowLevelUp(false), 3000);
         }
         setUserData(data);
+        if (data.passport) {
+          setHasPassport(true);
+        }
       } else {
         console.log('Initializing or completing user profile...');
         // Initialize new user or complete partial ecosystem profile
@@ -453,39 +465,48 @@ export default function App() {
     if (!userData || !user) return;
   }, [userData, quests, user, loading]);
 
-  const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (err: any) {
-      console.error('Login Error:', err);
-      
-      if (err.code === 'auth/unauthorized-domain') {
-        setSystemError(`Login failed: This domain is not authorized in your Firebase Console. Please add "${window.location.hostname}" to Authentication > Settings > Authorized domains.`);
-      } else if (err.code === 'auth/operation-not-allowed') {
-        setSystemError("Login failed: Google Sign-In is not enabled in your Firebase Console. Please enable it in Authentication > Sign-in method.");
-      } else if (err.code === 'auth/popup-blocked') {
-        setSystemError("Login failed: The popup was blocked by your browser. Please allow popups for this site.");
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        setSystemError("Login cancelled: The login popup was closed before completion. If popups are failing, try the 'Login with Redirect' option below.");
-      } else if (err.code === 'auth/internal-error' || err.code === 'auth/network-request-failed') {
-        setSystemError("Login failed: This is often caused by blocked third-party cookies or network issues. Please try again.");
-      } else {
-        setSystemError(`Login failed: ${err.message} (${err.code})`);
-      }
-    }
+  const handleLogin = () => {
+    const appId = 'GrindOS';
+    const redirectUri = `${window.location.origin}/callback`;
+    const passportUrl = `https://passport.starvortexai.com?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    window.location.href = passportUrl;
   };
 
-  const handleLoginRedirect = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    try {
-      await signInWithRedirect(auth, provider);
-    } catch (err: any) {
-      setSystemError(`Redirect Login failed: ${err.message}`);
-    }
+  const CallbackHandler = () => {
+    const [searchParams] = useSearchParams();
+    const token = searchParams.get('token');
+
+    useEffect(() => {
+      if (token) {
+        signInWithCustomToken(auth, token)
+          .then(() => {
+            navigate('/');
+          })
+          .catch((err) => {
+            console.error('Passport Auth Failed:', err);
+            setSystemError(`Passport authentication failed: ${err.message}`);
+            navigate('/');
+          });
+      } else {
+        navigate('/');
+      }
+    }, [token]);
+
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-6 p-6">
+        <div className="relative">
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full"
+          />
+          <Shield className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-indigo-500 animate-pulse" />
+        </div>
+        <p className="text-zinc-500 font-mono text-[10px] animate-pulse uppercase tracking-[0.2em]">
+          Validating Passport Credentials...
+        </p>
+      </div>
+    );
   };
 
   const handleLogout = () => signOut(auth);
@@ -703,7 +724,7 @@ export default function App() {
     );
   }
 
-  if (loading) {
+  if (loading || (user && hasPassport === null)) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-6 p-6">
         <div className="relative">
@@ -782,260 +803,260 @@ export default function App() {
     img.src = url;
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-black text-white selection:bg-blue-500/30 overflow-x-hidden">
-        {/* Navigation */}
-        <nav className="fixed top-0 w-full z-50 bg-black/50 backdrop-blur-xl border-b border-white/5 px-6 py-4">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <Zap className="w-6 h-6 text-blue-500 fill-blue-500/20" />
-              <span className="font-bold tracking-tighter text-xl uppercase">GrindOS</span>
+  const DashboardContent = () => {
+    if (!user) {
+      return (
+        <div className="min-h-screen bg-black text-white selection:bg-blue-500/30 overflow-x-hidden">
+          {/* Navigation */}
+          <nav className="fixed top-0 w-full z-50 bg-black/50 backdrop-blur-xl border-b border-white/5 px-6 py-4">
+            <div className="max-w-7xl mx-auto flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Zap className="w-6 h-6 text-blue-500 fill-blue-500/20" />
+                <span className="font-bold tracking-tighter text-xl uppercase">GrindOS</span>
+              </div>
+              <button 
+                onClick={handleLogin}
+                className="text-sm font-mono uppercase tracking-widest hover:text-blue-400 transition-colors"
+              >
+                [ Login with Passport ]
+              </button>
             </div>
-            <button 
-              onClick={handleLogin}
-              className="text-sm font-mono uppercase tracking-widest hover:text-blue-400 transition-colors"
-            >
-              [ Login with Passport ]
-            </button>
-          </div>
-        </nav>
+          </nav>
 
-        {/* Hero Section */}
-        <section className="relative pt-32 pb-20 px-6 overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none">
-            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full animate-pulse" />
-          </div>
+          {/* Hero Section */}
+          <section className="relative pt-32 pb-20 px-6 overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none">
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
+              <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full animate-pulse" />
+            </div>
 
-          <div className="max-w-7xl mx-auto relative z-10">
-            <div className="flex flex-col items-center text-center">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-                className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-mono uppercase tracking-[0.2em]"
-              >
-                <Zap className="w-3 h-3 fill-current" />
-                StarVortexAI Ecosystem // Core Processor v2.2
-              </motion.div>
-
-              <motion.h1 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.85] mb-8 uppercase italic"
-              >
-                Master The <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-indigo-400 to-purple-500">Neural Lattice</span>
-              </motion.h1>
-
-              <motion.p 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="max-w-2xl text-zinc-400 text-lg md:text-xl leading-relaxed mb-12"
-              >
-                GrindOS is the central processing unit of the StarVortexAI ecosystem. 
-                Synchronize your discipline, track cross-app synergies, and dominate the digital landscape.
-              </motion.p>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
-              >
-                <button 
-                  onClick={handleLogin}
-                  className="group relative px-8 py-4 bg-white text-black font-black rounded-sm overflow-hidden transition-all hover:scale-105 active:scale-95"
+            <div className="max-w-7xl mx-auto relative z-10">
+              <div className="flex flex-col items-center text-center">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5 }}
+                  className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-mono uppercase tracking-[0.2em]"
                 >
-                  <span className="relative z-10 flex items-center gap-2 uppercase tracking-tighter italic">
-                    Initialize with Passport <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </span>
-                </button>
-                <button 
-                  onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="px-8 py-4 bg-zinc-900 text-white font-bold rounded-sm border border-zinc-800 hover:bg-zinc-800 transition-all uppercase tracking-tighter italic"
+                  <Zap className="w-3 h-3 fill-current" />
+                  StarVortexAI Ecosystem // Core Processor v2.2
+                </motion.div>
+
+                <motion.h1 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.85] mb-8 uppercase italic"
                 >
-                  View Specs
-                </button>
-              </motion.div>
-            </div>
-          </div>
-        </section>
+                  Master The <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-indigo-400 to-purple-500">Neural Lattice</span>
+                </motion.h1>
 
-        {/* Stats Preview / Social Proof */}
-        <section className="py-12 border-y border-white/5 bg-zinc-950/50">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-              {[
-                { label: 'Active Agents', value: systemStats.agents },
-                { label: 'Quests Completed', value: systemStats.quests },
-                { label: 'XP Distributed', value: systemStats.xp.toLocaleString() },
-                { label: 'Uptime', value: '99.9%' }
-              ].map((stat, i) => (
-                <div key={i}>
-                  <div className="text-2xl md:text-3xl font-black text-white mb-1">{stat.value}</div>
-                  <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">{stat.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="max-w-2xl text-zinc-400 text-lg md:text-xl leading-relaxed mb-12"
+                >
+                  GrindOS is the central processing unit of the StarVortexAI ecosystem. 
+                  Synchronize your discipline, track cross-app synergies, and dominate the digital landscape.
+                </motion.p>
 
-        {/* Features Grid */}
-        <section id="features" className="py-32 px-6 relative">
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5 border border-white/5">
-              {[
-                {
-                  icon: <Target className="w-8 h-8 text-blue-500" />,
-                  title: "Quest Orchestration",
-                  desc: "Break down complex goals into executable daily and side quests with real-time XP rewards."
-                },
-                {
-                  icon: <TrendingUp className="w-8 h-8 text-purple-500" />,
-                  title: "Stat Evolution",
-                  desc: "Monitor your growth across 5 core dimensions: Knowledge, Skill, Relationships, Creation, and Discipline."
-                },
-                {
-                  icon: <Shield className="w-8 h-8 text-emerald-500" />,
-                  title: "Streak Protection",
-                  desc: "Built-in mechanisms to maintain momentum and visualize your consistency over time."
-                },
-                {
-                  icon: <Layers className="w-8 h-8 text-indigo-500" />,
-                  title: "Ecosystem Sync",
-                  desc: "Automatically derive XP from activity in FireInk, ExplainerX, and Passport to build your global profile."
-                },
-                {
-                  icon: <Zap className="w-8 h-8 text-yellow-500" />,
-                  title: "Instant Feedback",
-                  desc: "Experience the dopamine hit of leveling up with high-fidelity visual and haptic feedback."
-                },
-                {
-                  icon: <History className="w-8 h-8 text-pink-500" />,
-                  title: "Activity Archiving",
-                  desc: "Every action is logged. Review your history to optimize your future performance."
-                }
-              ].map((feature, i) => (
-                <div key={i} className="bg-black p-12 hover:bg-zinc-900/50 transition-colors group">
-                  <div className="mb-6 group-hover:scale-110 transition-transform duration-500">
-                    {feature.icon}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
+                >
+                  <button 
+                    onClick={handleLogin}
+                    className="group relative px-8 py-4 bg-white text-black font-black rounded-sm overflow-hidden transition-all hover:scale-105 active:scale-95"
+                  >
+                    <span className="relative z-10 flex items-center gap-2 uppercase tracking-tighter italic">
+                      Initialize with Passport <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  </button>
+                  <button 
+                    onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="px-8 py-4 bg-zinc-900 text-white font-bold rounded-sm border border-zinc-800 hover:bg-zinc-800 transition-all uppercase tracking-tighter italic"
+                  >
+                    View Specs
+                  </button>
+                </motion.div>
+              </div>
+            </div>
+          </section>
+
+          {/* Stats Preview */}
+          <section className="py-12 border-y border-white/5 bg-zinc-950/50">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                {[
+                  { label: 'Active Agents', value: systemStats.agents },
+                  { label: 'Quests Completed', value: systemStats.quests },
+                  { label: 'XP Distributed', value: systemStats.xp.toLocaleString() },
+                  { label: 'Uptime', value: '99.9%' }
+                ].map((stat, i) => (
+                  <div key={i}>
+                    <div className="text-2xl md:text-3xl font-black text-white mb-1">{stat.value}</div>
+                    <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">{stat.label}</div>
                   </div>
-                  <h3 className="text-xl font-bold mb-4 uppercase italic tracking-tight">{feature.title}</h3>
-                  <p className="text-zinc-500 leading-relaxed text-sm">
-                    {feature.desc}
-                  </p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* CTA Section */}
-        <section className="py-32 px-6">
-          <div className="max-w-4xl mx-auto text-center bg-gradient-to-b from-zinc-900 to-black border border-white/5 p-16 rounded-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500" />
-            <h2 className="text-4xl md:text-6xl font-black mb-8 uppercase italic tracking-tighter">
-              Ready to <span className="text-blue-500">Level Up?</span>
-            </h2>
-            <p className="text-zinc-400 mb-12 text-lg">
-              Synchronize your active identity with the StarVortexAI grid. Passport required for system access.
-            </p>
-            <button 
-              onClick={handleLogin}
-              className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-sm transition-all hover:scale-105 active:scale-95 uppercase tracking-tighter italic"
+          {/* Features Grid */}
+          <section id="features" className="py-32 px-6 relative">
+            <div className="max-w-7xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5 border border-white/5">
+                {[
+                  {
+                    icon: <Target className="w-8 h-8 text-blue-500" />,
+                    title: "Quest Orchestration",
+                    desc: "Break down complex goals into executable daily and side quests with real-time XP rewards."
+                  },
+                  {
+                    icon: <TrendingUp className="w-8 h-8 text-purple-500" />,
+                    title: "Stat Evolution",
+                    desc: "Monitor your growth across 5 core dimensions: Knowledge, Skill, Relationships, Creation, and Discipline."
+                  },
+                  {
+                    icon: <Shield className="w-8 h-8 text-emerald-500" />,
+                    title: "Streak Protection",
+                    desc: "Built-in mechanisms to maintain momentum and visualize your consistency over time."
+                  },
+                  {
+                    icon: <Layers className="w-8 h-8 text-indigo-500" />,
+                    title: "Ecosystem Sync",
+                    desc: "Automatically derive XP from activity in FireInk, ExplainerX, and Passport to build your global profile."
+                  },
+                  {
+                    icon: <Zap className="w-8 h-8 text-yellow-500" />,
+                    title: "Instant Feedback",
+                    desc: "Experience the dopamine hit of leveling up with high-fidelity visual and haptic feedback."
+                  },
+                  {
+                    icon: <History className="w-8 h-8 text-pink-500" />,
+                    title: "Activity Archiving",
+                    desc: "Every action is logged. Review your history to optimize your future performance."
+                  }
+                ].map((feature, i) => (
+                  <div key={i} className="bg-black p-12 hover:bg-zinc-900/50 transition-colors group">
+                    <div className="mb-6 group-hover:scale-110 transition-transform duration-500">
+                      {feature.icon}
+                    </div>
+                    <h3 className="text-xl font-bold mb-4 uppercase italic tracking-tight">{feature.title}</h3>
+                    <p className="text-zinc-500 leading-relaxed text-sm">
+                      {feature.desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* CTA Section */}
+          <section className="py-32 px-6">
+            <div className="max-w-4xl mx-auto text-center bg-gradient-to-b from-zinc-900 to-black border border-white/5 p-16 rounded-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500" />
+              <h2 className="text-4xl md:text-6xl font-black mb-8 uppercase italic tracking-tighter">
+                Ready to <span className="text-blue-500">Level Up?</span>
+              </h2>
+              <p className="text-zinc-400 mb-12 text-lg">
+                Synchronize your active identity with the StarVortexAI grid. Passport required for system access.
+              </p>
+              <button 
+                onClick={handleLogin}
+                className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-sm transition-all hover:scale-105 active:scale-95 uppercase tracking-tighter italic"
+              >
+                Initialize with Passport
+              </button>
+            </div>
+          </section>
+
+          {/* Footer */}
+          <footer className="py-12 px-6 border-t border-white/5">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-zinc-500" />
+                <span className="font-bold tracking-tighter text-zinc-500 uppercase">GrindOS</span>
+              </div>
+              <div className="flex gap-8 text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
+                <a href="#" className="hover:text-white transition-colors">Privacy</a>
+                <a href="#" className="hover:text-white transition-colors">Terms</a>
+                <a href="#" className="hover:text-white transition-colors">Contact</a>
+              </div>
+              <div className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest">
+                © 2024 StarVortex Systems // All Rights Reserved
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    if (user && hasPassport === false) {
+      return (
+        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-24 h-24 mb-8 bg-indigo-500/10 rounded-full flex items-center justify-center border border-indigo-500/20">
+            <ShieldAlert className="w-12 h-12 text-indigo-500" />
+          </div>
+          <h1 className="text-4xl font-black italic uppercase tracking-tighter mb-4">Passport Required</h1>
+          <p className="text-zinc-400 max-w-md mb-8 leading-relaxed">
+            GrindOS is part of the StarVortexAI ecosystem. To access this system, you must first initialize your global identity in the Passport node.
+          </p>
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <a 
+              href="https://passport.starvortexai.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded shadow-lg shadow-indigo-500/20 transition-all uppercase tracking-tight italic text-center"
             >
-              Initialize with Passport
+              Visit passport.starvortexai.com
+            </a>
+            <button 
+              onClick={() => signOut(auth)}
+              className="text-zinc-500 hover:text-white text-xs font-mono uppercase tracking-widest transition-colors"
+            >
+              [ Sign Out ]
             </button>
           </div>
-        </section>
+        </div>
+      );
+    }
 
-        {/* Footer */}
-        <footer className="py-12 px-6 border-t border-white/5">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-zinc-500" />
-              <span className="font-bold tracking-tighter text-zinc-500 uppercase">GrindOS</span>
-            </div>
-            <div className="flex gap-8 text-[10px] font-mono text-zinc-600 uppercase tracking-widest">
-              <a href="#" className="hover:text-white transition-colors">Privacy</a>
-              <a href="#" className="hover:text-white transition-colors">Terms</a>
-              <a href="#" className="hover:text-white transition-colors">Contact</a>
-            </div>
-            <div className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest">
-              © 2024 StarVortex Systems // All Rights Reserved
-            </div>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
-  if (user && hasPassport === false) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-24 h-24 mb-8 bg-indigo-500/10 rounded-full flex items-center justify-center border border-indigo-500/20">
-          <ShieldAlert className="w-12 h-12 text-indigo-500" />
-        </div>
-        <h1 className="text-4xl font-black italic uppercase tracking-tighter mb-4">Passport Required</h1>
-        <p className="text-zinc-400 max-w-md mb-8 leading-relaxed">
-          GrindOS is part of the StarVortexAI ecosystem. To access this system, you must first initialize your global identity in the Passport node.
-        </p>
-        <div className="flex flex-col gap-4 w-full max-w-xs">
-          <a 
-            href="https://passport.starvortexai.com" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded shadow-lg shadow-indigo-500/20 transition-all uppercase tracking-tight italic text-center"
-          >
-            Visit passport.starvortexai.com
-          </a>
-          <button 
-            onClick={() => signOut(auth)}
-            className="text-zinc-500 hover:text-white text-xs font-mono uppercase tracking-widest transition-colors"
-          >
-            [ Sign Out ]
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-blue-500/30">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-md border-b border-zinc-900 px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Zap className="w-6 h-6 text-blue-500" />
-            <span className="font-bold tracking-tighter text-xl">GrindOS</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-xs font-mono text-zinc-500 uppercase">{userData?.passport?.title || currentTitle}</span>
-              <span className="text-sm font-bold tracking-tight">{userData?.username}</span>
+      <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-blue-500/30 text-white selection:bg-blue-500/30 overflow-x-hidden">
+        <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-md border-b border-zinc-900 px-4 py-3 text-zinc-100 selection:bg-blue-500/30">
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Zap className="w-6 h-6 text-blue-500" />
+              <span className="font-bold tracking-tighter text-xl">GrindOS</span>
             </div>
-            <button 
-              onClick={handleDownloadLogo}
-              title="Download Logo (Temporary)"
-              className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-500 hover:text-blue-500"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button 
-              onClick={handleLogout}
-              className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-500 hover:text-white"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex flex-col items-end">
+                <span className="text-xs font-mono text-zinc-500 uppercase">{userData?.passport?.title || currentTitle}</span>
+                <span className="text-sm font-bold tracking-tight">{userData?.username}</span>
+              </div>
+              <button 
+                onClick={handleDownloadLogo}
+                title="Download Logo (Temporary)"
+                className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-500 hover:text-blue-500"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="p-2 hover:bg-zinc-900 rounded-lg transition-colors text-zinc-500 hover:text-white"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
+        <main className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
         {/* Level & XP Section */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-2 flex flex-col justify-center">
@@ -1437,5 +1458,13 @@ export default function App() {
         </p>
       </footer>
     </div>
+  );
+};
+
+  return (
+    <Routes>
+      <Route path="/callback" element={<CallbackHandler />} />
+      <Route path="/" element={<DashboardContent />} />
+    </Routes>
   );
 }
