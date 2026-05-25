@@ -24,7 +24,7 @@ export const syncEcosystemUser = async (user: any, appName: string) => {
       email: user.email,
       displayName: user.displayName,
       photoURL: user.photoURL,
-      lastLogin: serverTimestamp(),
+      lastActive: serverTimestamp(),
       appsUsed: appsUsed
     }, { merge: true });
   } catch (error) {

@@ -140,12 +140,20 @@ interface UserData {
   xp: number;
   streak: number;
   lastActive: any;
+  appsUsed?: string[];
+  clearday?: {
+    energyLevel: 'Low' | 'Medium' | 'High';
+  };
+  fireink?: {
+    level: number;
+  };
   stats: {
     knowledge: number;
     skill: number;
     relationships: number;
     creation: number;
     discipline: number;
+    creative?: number;
   };
   createdAt: any;
 }
@@ -372,6 +380,7 @@ export default function App() {
           xp: 0,
           streak: 0,
           lastActive: serverTimestamp(),
+          appsUsed: ['GrindOS'],
           stats: {
             knowledge: 0,
             skill: 0,
@@ -468,13 +477,23 @@ export default function App() {
   const addXP = async (amount: number, action: string, statKey?: keyof UserData['stats']) => {
     if (!user || !userData) return;
 
-    const newXp = userData.xp + amount;
+    // Apply Clearday Energy Multiplier (Ecosystem Requirement 3)
+    let finalAmount = amount;
+    if (userData.clearday?.energyLevel === 'Low') {
+      finalAmount = Math.floor(amount * 0.5);
+      console.log('Clearday Buff Applied: 0.5x XP Multiplier (Low Energy)');
+    }
+
+    const newXp = userData.xp + finalAmount;
     const newLevel = Math.floor(newXp / XP_PER_LEVEL) + 1;
     
     const updates: any = {
       xp: newXp,
       level: newLevel,
-      lastActive: serverTimestamp()
+      lastActive: serverTimestamp(),
+      appsUsed: userData.appsUsed?.includes('GrindOS') 
+        ? userData.appsUsed 
+        : [...(userData.appsUsed || []), 'GrindOS']
     };
 
     if (statKey) {
@@ -483,10 +502,18 @@ export default function App() {
 
     try {
       await updateDoc(doc(db, 'users', user.uid), updates);
+      
+      // Log Activity in Ecosystem Protocol Format (Ecosystem Requirement 1)
       await addDoc(collection(db, 'users', user.uid, 'activities'), {
-        action,
-        xpGained: amount,
-        timestamp: serverTimestamp()
+        action: `GRINDOS: ${action}`,
+        xpGained: finalAmount,
+        timestamp: serverTimestamp(),
+        metadata: {
+          app: 'GrindOS',
+          type: 'XP_GAIN',
+          statAwarded: statKey,
+          cleardayMultiplier: userData.clearday?.energyLevel === 'Low' ? 0.5 : 1
+        }
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`, setSystemError);
@@ -523,7 +550,7 @@ export default function App() {
       // Update global stats
       updateDoc(doc(db, 'system_stats', 'global'), {
         questCount: increment(1),
-        xpTotal: increment(finalAmount)
+        xpTotal: increment(userData.clearday?.energyLevel === 'Low' ? Math.floor(finalAmount * 0.5) : finalAmount)
       }).catch(e => console.warn('Failed to update global quest stats:', e));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/quests/${quest.id}`, setSystemError);
@@ -572,13 +599,17 @@ export default function App() {
 
   const radarData = useMemo(() => {
     if (!userData || !userData.stats) return [];
-    return [
+    const data = [
       { subject: 'Knowledge', A: userData.stats.knowledge || 0, fullMark: 100 },
       { subject: 'Skill', A: userData.stats.skill || 0, fullMark: 100 },
       { subject: 'Relationships', A: userData.stats.relationships || 0, fullMark: 100 },
       { subject: 'Creation', A: userData.stats.creation || 0, fullMark: 100 },
       { subject: 'Discipline', A: userData.stats.discipline || 0, fullMark: 100 },
     ];
+    if (userData.stats.creative !== undefined || (userData?.fireink?.level && userData.fireink.level > 0)) {
+      data.push({ subject: 'Creative', A: userData.stats.creative || userData.fireink?.level || 0, fullMark: 100 });
+    }
+    return data;
   }, [userData]);
 
   if (systemError) {
@@ -1019,6 +1050,7 @@ export default function App() {
                       {quest.category === 'social' && <Users className="w-5 h-5 text-pink-400" />}
                       {quest.category === 'project' && <Code className="w-5 h-5 text-purple-400" />}
                       {quest.category === 'productivity' && <ListChecks className="w-5 h-5 text-orange-400" />}
+                      {quest.category === 'creative' && <Star className="w-5 h-5 text-indigo-400" />}
                       {quest.category === 'custom' && <Zap className="w-5 h-5 text-yellow-400" />}
                     </div>
                     <div>
@@ -1273,6 +1305,9 @@ export default function App() {
                       <option value="social">Social</option>
                       <option value="project">Project</option>
                       <option value="productivity">Productivity</option>
+                      {userData?.fireink && userData.fireink.level > 5 && (
+                        <option value="creative">Creative (Unlocked)</option>
+                      )}
                       <option value="custom">Custom</option>
                     </select>
                   </div>
