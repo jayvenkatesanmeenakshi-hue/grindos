@@ -141,11 +141,20 @@ interface UserData {
   streak: number;
   lastActive: any;
   appsUsed?: string[];
-  clearday?: {
-    energyLevel: 'Low' | 'Medium' | 'High';
-  };
   fireink?: {
     level: number;
+  };
+  passport?: {
+    rank?: string;
+    title?: string;
+    skillLevel?: number;
+  };
+  chronos?: {
+    accuracy: number;
+    knowledgeScore: number;
+  };
+  explainerx?: {
+    topicsCovered: number;
   };
   stats: {
     knowledge: number;
@@ -226,6 +235,7 @@ export default function App() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [hasPassport, setHasPassport] = useState<boolean | null>(null);
   const [systemStats, setSystemStats] = useState({
     agents: 0,
     quests: 0,
@@ -343,11 +353,17 @@ export default function App() {
       setUser(u);
       if (u) {
         syncEcosystemUser(u, 'GrindOS');
+        // Check for Passport in the global passport collection
+        const passportRef = doc(db, 'passport', u.uid);
+        onSnapshot(passportRef, (snap) => {
+          setHasPassport(snap.exists());
+        });
       } else {
         setUserData(null);
         setQuests([]);
         setActivities([]);
         setLoading(false);
+        setHasPassport(null);
       }
     });
     return unsubscribe;
@@ -477,26 +493,25 @@ export default function App() {
   const addXP = async (amount: number, action: string, statKey?: keyof UserData['stats']) => {
     if (!user || !userData) return;
 
-    // Apply Clearday Energy Multiplier (Ecosystem Requirement 3)
-    let finalAmount = amount;
-    if (userData.clearday?.energyLevel === 'Low') {
-      finalAmount = Math.floor(amount * 0.5);
-      console.log('Clearday Buff Applied: 0.5x XP Multiplier (Low Energy)');
-    }
-
-    const newXp = userData.xp + finalAmount;
+    const newXp = userData.xp + amount;
     const newLevel = Math.floor(newXp / XP_PER_LEVEL) + 1;
     
+    // Derive Ecosystem-based stats (Ecosystem Integration Mission)
+    // Discipline and Streak now derive from engagement across all nodes
+    const engagementFactor = (userData.appsUsed?.length || 1);
+    const calculatedDiscipline = (userData.stats.discipline || 0) + (engagementFactor > 2 ? 1 : 0);
+
     const updates: any = {
       xp: newXp,
       level: newLevel,
       lastActive: serverTimestamp(),
+      'stats.discipline': calculatedDiscipline,
       appsUsed: userData.appsUsed?.includes('GrindOS') 
         ? userData.appsUsed 
         : [...(userData.appsUsed || []), 'GrindOS']
     };
 
-    if (statKey) {
+    if (statKey && statKey !== 'discipline') {
       updates[`stats.${statKey}`] = (userData.stats[statKey] || 0) + 1;
     }
 
@@ -506,13 +521,13 @@ export default function App() {
       // Log Activity in Ecosystem Protocol Format (Ecosystem Requirement 1)
       await addDoc(collection(db, 'users', user.uid, 'activities'), {
         action: `GRINDOS: ${action}`,
-        xpGained: finalAmount,
+        xpGained: amount,
         timestamp: serverTimestamp(),
         metadata: {
           app: 'GrindOS',
           type: 'XP_GAIN',
           statAwarded: statKey,
-          cleardayMultiplier: userData.clearday?.energyLevel === 'Low' ? 0.5 : 1
+          engagementFactor
         }
       });
     } catch (error) {
@@ -550,7 +565,7 @@ export default function App() {
       // Update global stats
       updateDoc(doc(db, 'system_stats', 'global'), {
         questCount: increment(1),
-        xpTotal: increment(userData.clearday?.energyLevel === 'Low' ? Math.floor(finalAmount * 0.5) : finalAmount)
+        xpTotal: increment(finalAmount)
       }).catch(e => console.warn('Failed to update global quest stats:', e));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/quests/${quest.id}`, setSystemError);
@@ -599,17 +614,43 @@ export default function App() {
 
   const radarData = useMemo(() => {
     if (!userData || !userData.stats) return [];
+    
+    // Ecosystem Input Protocol Alignment (Ecosystem Directive V2.2)
+    const knowledge = (userData.stats.knowledge || 0) + 
+      (userData.chronos?.knowledgeScore || 0) + 
+      (userData.explainerx?.topicsCovered || 0);
+      
+    const skill = (userData.stats.skill || 0) + 
+      (userData.passport?.skillLevel || 0);
+      
+    const creation = (userData.stats.creation || 0) + 
+      (userData.fireink?.level || 0);
+
+    // Derive Discipline exclusively from engagement across nodes
+    const appsCount = userData.appsUsed?.length || 0;
+    const ecosystemActivityFactor = (userData.fireink?.level || 0) + 
+                                  (userData.passport?.skillLevel || 0) + 
+                                  (userData.chronos?.accuracy || 0);
+    const discipline = (userData.stats.discipline || 0) + (appsCount * 5) + Math.floor(ecosystemActivityFactor / 10);
+
     const data = [
-      { subject: 'Knowledge', A: userData.stats.knowledge || 0, fullMark: 100 },
-      { subject: 'Skill', A: userData.stats.skill || 0, fullMark: 100 },
-      { subject: 'Relationships', A: userData.stats.relationships || 0, fullMark: 100 },
-      { subject: 'Creation', A: userData.stats.creation || 0, fullMark: 100 },
-      { subject: 'Discipline', A: userData.stats.discipline || 0, fullMark: 100 },
+      { subject: 'Knowledge', A: Math.min(100, knowledge), fullMark: 100 },
+      { subject: 'Skill', A: Math.min(100, skill), fullMark: 100 },
+      { subject: 'Relationships', A: Math.min(100, userData.stats.relationships || 0), fullMark: 100 },
+      { subject: 'Creation', A: Math.min(100, creation), fullMark: 100 },
+      { subject: 'Discipline', A: Math.min(100, discipline), fullMark: 100 },
     ];
     if (userData.stats.creative !== undefined || (userData?.fireink?.level && userData.fireink.level > 0)) {
       data.push({ subject: 'Creative', A: userData.stats.creative || userData.fireink?.level || 0, fullMark: 100 });
     }
     return data;
+  }, [userData]);
+
+  const ecosystemStreak = useMemo(() => {
+    if (!userData) return 0;
+    // Derive streak from active nodes and base streak
+    const nodeEngagement = (userData.appsUsed?.length || 1);
+    return userData.streak + (nodeEngagement > 1 ? nodeEngagement - 1 : 0);
   }, [userData]);
 
   if (systemError) {
@@ -755,7 +796,7 @@ export default function App() {
               onClick={handleLogin}
               className="text-sm font-mono uppercase tracking-widest hover:text-blue-400 transition-colors"
             >
-              [ Login ]
+              [ Login with Passport ]
             </button>
           </div>
         </nav>
@@ -809,7 +850,7 @@ export default function App() {
                   className="group relative px-8 py-4 bg-white text-black font-black rounded-sm overflow-hidden transition-all hover:scale-105 active:scale-95"
                 >
                   <span className="relative z-10 flex items-center gap-2 uppercase tracking-tighter italic">
-                    Initialize System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    Initialize with Passport <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </span>
                 </button>
                 <button 
@@ -906,7 +947,7 @@ export default function App() {
               onClick={handleLogin}
               className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-sm transition-all hover:scale-105 active:scale-95 uppercase tracking-tighter italic"
             >
-              Initialize Your Profile
+              Initialize with Passport
             </button>
           </div>
         </section>
@@ -932,6 +973,36 @@ export default function App() {
     );
   }
 
+  if (user && hasPassport === false) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-24 h-24 mb-8 bg-indigo-500/10 rounded-full flex items-center justify-center border border-indigo-500/20">
+          <ShieldAlert className="w-12 h-12 text-indigo-500" />
+        </div>
+        <h1 className="text-4xl font-black italic uppercase tracking-tighter mb-4">Passport Required</h1>
+        <p className="text-zinc-400 max-w-md mb-8 leading-relaxed">
+          GrindOS is part of the StarVortexAI ecosystem. To access this system, you must first initialize your global identity in the Passport node.
+        </p>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <a 
+            href="https://passport.starvortexai.com" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded shadow-lg shadow-indigo-500/20 transition-all uppercase tracking-tight italic text-center"
+          >
+            Visit passport.starvortexai.com
+          </a>
+          <button 
+            onClick={() => signOut(auth)}
+            className="text-zinc-500 hover:text-white text-xs font-mono uppercase tracking-widest transition-colors"
+          >
+            [ Sign Out ]
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-blue-500/30">
       {/* Header */}
@@ -943,8 +1014,8 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end">
-              <span className="text-xs font-mono text-zinc-500 uppercase">{currentTitle}</span>
-              <span className="text-sm font-bold">{userData?.username}</span>
+              <span className="text-xs font-mono text-zinc-500 uppercase">{userData?.passport?.title || currentTitle}</span>
+              <span className="text-sm font-bold tracking-tight">{userData?.username}</span>
             </div>
             <button 
               onClick={handleDownloadLogo}
@@ -978,7 +1049,7 @@ export default function App() {
               <div className="text-right">
                 <div className="flex items-center gap-2 text-orange-500 mb-1">
                   <Flame className="w-4 h-4 fill-orange-500/20" />
-                  <span className="font-bold">{userData?.streak} Day Streak</span>
+                  <span className="font-bold">{ecosystemStreak} Day Streak</span>
                 </div>
                 <div className="text-xs font-mono text-zinc-500 uppercase">
                   {userData?.xp % XP_PER_LEVEL} / {XP_PER_LEVEL} XP
