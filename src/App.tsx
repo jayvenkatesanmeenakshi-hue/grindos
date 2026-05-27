@@ -139,20 +139,10 @@ interface UserData {
   streak: number;
   lastActive: any;
   appsUsed?: string[];
-  fireink?: {
-    level: number;
-  };
   passport?: {
     rank?: string;
     title?: string;
     skillLevel?: number;
-  };
-  chronos?: {
-    accuracy: number;
-    knowledgeScore: number;
-  };
-  explainerx?: {
-    topicsCovered: number;
   };
   stats: {
     knowledge: number;
@@ -466,19 +456,20 @@ export default function App() {
   }, [userData, quests, user, loading]);
 
   const handleLogin = () => {
-    const appId = 'GrindOS';
+    const clientId = 'grindos';
     const redirectUri = `${window.location.origin}/callback`;
-    const passportUrl = `https://passport.starvortexai.com?app_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    const passportUrl = `https://passport.starvortexai.com/passport?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
     window.location.href = passportUrl;
   };
 
   const CallbackHandler = () => {
     const [searchParams] = useSearchParams();
-    const token = searchParams.get('token');
+    const authToken = searchParams.get('auth_token');
+    const passportId = searchParams.get('passport_id');
 
     useEffect(() => {
-      if (token) {
-        signInWithCustomToken(auth, token)
+      if (authToken) {
+        signInWithCustomToken(auth, authToken)
           .then(() => {
             navigate('/');
           })
@@ -490,7 +481,7 @@ export default function App() {
       } else {
         navigate('/');
       }
-    }, [token]);
+    }, [authToken, passportId]);
 
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-6 p-6">
@@ -636,23 +627,18 @@ export default function App() {
   const radarData = useMemo(() => {
     if (!userData || !userData.stats) return [];
     
-    // Ecosystem Input Protocol Alignment (Ecosystem Directive V2.2)
+    // Ecosystem Input Protocol Alignment (Ecosystem Directive 🌌)
     const knowledge = (userData.stats.knowledge || 0) + 
-      (userData.chronos?.knowledgeScore || 0) + 
-      (userData.explainerx?.topicsCovered || 0);
+      (userData.passport?.skillLevel || 0);
       
     const skill = (userData.stats.skill || 0) + 
       (userData.passport?.skillLevel || 0);
       
-    const creation = (userData.stats.creation || 0) + 
-      (userData.fireink?.level || 0);
+    const creation = (userData.stats.creation || 0);
 
-    // Derive Discipline exclusively from engagement across nodes
+    // Derive Discipline from activity and local engagement
     const appsCount = userData.appsUsed?.length || 0;
-    const ecosystemActivityFactor = (userData.fireink?.level || 0) + 
-                                  (userData.passport?.skillLevel || 0) + 
-                                  (userData.chronos?.accuracy || 0);
-    const discipline = (userData.stats.discipline || 0) + (appsCount * 5) + Math.floor(ecosystemActivityFactor / 10);
+    const discipline = (userData.stats.discipline || 0) + (appsCount * 2);
 
     const data = [
       { subject: 'Knowledge', A: Math.min(100, knowledge), fullMark: 100 },
@@ -661,8 +647,8 @@ export default function App() {
       { subject: 'Creation', A: Math.min(100, creation), fullMark: 100 },
       { subject: 'Discipline', A: Math.min(100, discipline), fullMark: 100 },
     ];
-    if (userData.stats.creative !== undefined || (userData?.fireink?.level && userData.fireink.level > 0)) {
-      data.push({ subject: 'Creative', A: userData.stats.creative || userData.fireink?.level || 0, fullMark: 100 });
+    if (userData.stats.creative !== undefined) {
+      data.push({ subject: 'Creative', A: userData.stats.creative || 0, fullMark: 100 });
     }
     return data;
   }, [userData]);
@@ -928,8 +914,8 @@ export default function App() {
                   },
                   {
                     icon: <Layers className="w-8 h-8 text-indigo-500" />,
-                    title: "Ecosystem Sync",
-                    desc: "Automatically derive XP from activity in FireInk, ExplainerX, and Passport to build your global profile."
+                    title: "Passport Sync",
+                    desc: "Automatically synchronize status and achievements via the StarVortex Passport global identity."
                   },
                   {
                     icon: <Zap className="w-8 h-8 text-yellow-500" />,
@@ -1398,7 +1384,7 @@ export default function App() {
                       <option value="social">Social</option>
                       <option value="project">Project</option>
                       <option value="productivity">Productivity</option>
-                      {userData?.fireink && userData.fireink.level > 5 && (
+                      {userData?.passport && (userData.passport.skillLevel || 0) > 5 && (
                         <option value="creative">Creative (Unlocked)</option>
                       )}
                       <option value="custom">Custom</option>
