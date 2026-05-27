@@ -1,12 +1,11 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
-
-  // API routes can be added here if needed in the future
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -20,7 +19,13 @@ async function startServer() {
     app.get('*', async (req, res, next) => {
       try {
         const url = req.originalUrl;
-        const template = await vite.transformIndexHtml(url, 'index.html');
+        // Standard way: Read index.html from root and transform it
+        const indexPath = path.resolve(process.cwd(), 'index.html');
+        if (!fs.existsSync(indexPath)) {
+          return next();
+        }
+        let template = fs.readFileSync(indexPath, 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       } catch (e) {
         vite.ssrFixStacktrace(e as Error);
@@ -37,7 +42,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
   });
 }
 

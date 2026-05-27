@@ -458,7 +458,7 @@ export default function App() {
   const handleLogin = () => {
     const clientId = 'grindos';
     const redirectUri = `${window.location.origin}/callback`;
-    const passportUrl = `https://passport.starvortexai.com/passport?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    const passportUrl = `https://passport.starvortexai.com/#/passport?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
     window.location.href = passportUrl;
   };
 
@@ -1451,6 +1451,7 @@ export default function App() {
     <Routes>
       <Route path="/callback" element={<CallbackHandler />} />
       <Route path="/" element={<DashboardContent />} />
+      <Route path="*" element={<div className="min-h-screen bg-black text-white flex items-center justify-center font-mono uppercase tracking-widest text-xs">404 // Route Not Found in GrindOS</div>} />
     </Routes>
   );
 }
