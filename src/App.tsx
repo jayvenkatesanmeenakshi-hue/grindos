@@ -456,10 +456,7 @@ export default function App() {
   }, [userData, quests, user, loading]);
 
   const handleLogin = () => {
-    const clientId = 'grindos';
-    const redirectUri = `${window.location.origin}/callback`;
-    const passportUrl = `https://passport.starvortexai.com/#/passport?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-    window.location.href = passportUrl;
+    window.location.href = `https://passport.starvortexai.com/grindos-login?redirect_uri=${encodeURIComponent(window.location.origin + '/passport-login-success')}`;
   };
 
   const CallbackHandler = () => {
@@ -675,16 +672,7 @@ export default function App() {
               }}
               className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition-colors text-sm"
             >
-              Retry Login (Popup)
-            </button>
-            <button 
-              onClick={() => {
-                setSystemError(null);
-                handleLoginRedirect();
-              }}
-              className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-bold transition-colors text-sm"
-            >
-              Login with Redirect (Fallback)
+              Return to Passport
             </button>
             <button 
               onClick={() => window.location.reload()}
@@ -1449,7 +1437,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/callback" element={<CallbackHandler />} />
+      <Route path="/passport-login-success" element={<CallbackHandler />} />
       <Route path="/" element={<DashboardContent />} />
       <Route path="*" element={<div className="min-h-screen bg-black text-white flex items-center justify-center font-mono uppercase tracking-widest text-xs">404 // Route Not Found in GrindOS</div>} />
     </Routes>
